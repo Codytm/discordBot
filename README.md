@@ -47,8 +47,6 @@ Terraform in `infra/` creates the resources in `eastus`. `infra/deploy.ps1` is t
 | Container Apps environment and `ca-discord-bot` | Runs the process. One replica, because a second login would double every reply. No ingress, because nothing on the internet connects in. The bot dials out to Discord and FastF1. |
 | 0.5 vCPU and 1 GiB | The consumption plan pairs 1 GiB with 0.5 vCPU. pandas and FastF1 need that memory. |
 
-Docker on this PC is only used to build and push the image. The image tag is the git commit SHA, so a new push rolls a new revision. After `deploy.ps1` finishes, this PC and Docker can be off.
-
 The subscription id is not in the repo. Terraform uses the Azure CLI login through `ARM_SUBSCRIPTION_ID`, which `deploy.ps1` sets.
 
 ## Run it locally
