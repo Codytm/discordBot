@@ -1,6 +1,6 @@
 # Discord bot
 
-A Discord bot for a Formula 1 server. It answers race questions, posts results after a race, and fixes X links so Discord shows the media. One copy runs on Azure Container Apps, so the PC that built it does not have to stay on.
+This is a Discord bot that I created for my friends and I. I will continue to implement functions as needed or requested by my friends, but I use the project to practice infrastructure work I want to do professionally: packaging an app, deploying it with Terraform, and keeping it running on Azure. It answers race questions, posts results after a race, and fixes X links so Discord shows the media. One copy runs on Azure Container Apps.
 
 The command prefix is `!`.
 
