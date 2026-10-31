@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars and fill in the token. deploy.ps1 writes that
+# file from the repo .env and records image_tag after the push.
+# terraform.tfvars is gitignored. Leave image_tag empty until an image exists.
+discord_token      = ""
+f1_results_channel = ""
+image_tag          = ""

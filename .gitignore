@@ -1,6 +1,11 @@
 .env
 discord.log
 data/
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/terraform.tfvars
+infra/.image-tag
 __pycache__/
 *.pyc
 .venv/

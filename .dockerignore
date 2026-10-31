@@ -1,0 +1,14 @@
+.env
+.git
+.github
+.venv
+venv
+data
+infra
+**/__pycache__
+*.pyc
+discord.log
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
