@@ -210,6 +210,12 @@ def _has_winner(table: pd.DataFrame) -> bool:
     return (table["positionText"].astype(str) == "1").any()
 
 
+def _standings_round(response) -> int | None:
+    if response.description.empty:
+        return None
+    return int(response.description.iloc[-1]["round"])
+
+
 def results_embed(response) -> discord.Embed:
     race = response.description.iloc[-1]
     table = response.content[-1].sort_values(by="position", na_position="last")
@@ -283,14 +289,19 @@ class F1(commands.Cog):
             return channel_id
         return None
 
-    def _already_posted(self, season: int, race_round: int) -> bool:
-        posted = self._read_state().get("posted", [])
-        return f"{season}-{race_round}" in posted
+    def _posted_key(self, season: int, race_round: int, kind: str = "results") -> str:
+        if kind == "results":
+            return f"{season}-{race_round}"
+        return f"{season}-{race_round}-{kind}"
 
-    def _mark_posted(self, season: int, race_round: int):
+    def _already_posted(self, season: int, race_round: int, kind: str = "results") -> bool:
+        posted = self._read_state().get("posted", [])
+        return self._posted_key(season, race_round, kind) in posted
+
+    def _mark_posted(self, season: int, race_round: int, kind: str = "results"):
         state = self._read_state()
         posted = list(state.get("posted", []))
-        key = f"{season}-{race_round}"
+        key = self._posted_key(season, race_round, kind)
         if key not in posted:
             posted.append(key)
         state["posted"] = posted
@@ -300,6 +311,10 @@ class F1(commands.Cog):
         # An empty "not yet" response must not sit in the 12-hour HTTP cache.
         with Cache.disabled():
             return self._ergast.get_race_results(season=season, round=race_round)
+
+    def _fetch_driver_standings_uncached(self):
+        with Cache.disabled():
+            return self._ergast.get_driver_standings(season="current")
 
     async def _check_for_race_result(self) -> float:
         channel_id = self._results_channel_id()
@@ -323,20 +338,37 @@ class F1(commands.Cog):
             return delay
 
         season = datetime.datetime.now(datetime.timezone.utc).year
-        if self._already_posted(season, race_round):
+        results_posted = self._already_posted(season, race_round)
+        standings_posted = self._already_posted(season, race_round, "standings")
+        if results_posted and standings_posted:
             return 30 * 60
 
-        log.info("Checking whether round %s results are published", race_round)
+        channel = self.bot.get_channel(channel_id) or await self.bot.fetch_channel(channel_id)
+        if not results_posted:
+            log.info("Checking whether round %s results are published", race_round)
+            async with self._lock:
+                response = await asyncio.to_thread(self._fetch_results_uncached, season, race_round)
+            if response.description.empty or not response.content or not _has_winner(response.content[-1]):
+                log.info("Round %s results are not published yet", race_round)
+                return 15 * 60
+
+            await channel.send(embed=results_embed(response))
+            self._mark_posted(season, race_round)
+            log.info("Posted round %s results to channel %s", race_round, channel_id)
+
+        if standings_posted:
+            return 30 * 60
+
+        log.info("Checking whether round %s standings are updated", race_round)
         async with self._lock:
-            response = await asyncio.to_thread(self._fetch_results_uncached, season, race_round)
-        if response.description.empty or not response.content or not _has_winner(response.content[-1]):
-            log.info("Round %s results are not published yet", race_round)
+            drivers = await asyncio.to_thread(self._fetch_driver_standings_uncached)
+        if _standings_round(drivers) != race_round:
+            log.info("Round %s standings are not updated yet", race_round)
             return 15 * 60
 
-        channel = self.bot.get_channel(channel_id) or await self.bot.fetch_channel(channel_id)
-        await channel.send(embed=results_embed(response))
-        self._mark_posted(season, race_round)
-        log.info("Posted round %s results to channel %s", race_round, channel_id)
+        await channel.send(embed=driver_standings_embed(drivers))
+        self._mark_posted(season, race_round, "standings")
+        log.info("Posted round %s standings to channel %s", race_round, channel_id)
         return 30 * 60
 
     @tasks.loop(minutes=30)
