@@ -30,14 +30,13 @@ variable "storage_account_name" {
   }
 }
 
-variable "discord_token" {
+variable "github_actions_principal_id" {
   type        = string
-  sensitive   = true
-  description = "Discord bot token. Set it in terraform.tfvars, which is gitignored."
+  description = "Object id of the GitHub Actions service principal created by the bootstrap stack."
 
   validation {
-    condition     = length(var.discord_token) > 0
-    error_message = "discord_token is required. Put it in infra/terraform.tfvars."
+    condition     = can(regex("^[0-9a-fA-F-]{36}$", var.github_actions_principal_id))
+    error_message = "github_actions_principal_id must be the bootstrap service principal object id."
   }
 }
 

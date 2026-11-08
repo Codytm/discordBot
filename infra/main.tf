@@ -1,8 +1,6 @@
-# Apply order is in deploy.ps1:
-#   1. Apply with an empty image_tag. That creates the registry, file share, and environment.
-#   2. Upload data/f1_posted.json to the share.
-#   3. Build and push the image.
-#   4. Apply again with image_tag set to the git sha. That creates the one container app.
+# GitHub Actions plans this stack on pull requests and applies it on main.
+# infra/bootstrap is applied once from this PC and is not part of that pipeline.
+# The Discord token is read from Key Vault. image_tag must already exist in the registry.
 
 resource "azurerm_resource_group" "this" {
   name     = var.resource_group_name
@@ -70,6 +68,33 @@ resource "azurerm_container_app_environment_storage" "this" {
   access_mode                  = "ReadWrite"
 }
 
+data "azurerm_client_config" "current" {}
+
+resource "azurerm_key_vault" "this" {
+  name                          = "kv-discordbotcody"
+  location                      = azurerm_resource_group.this.location
+  resource_group_name           = azurerm_resource_group.this.name
+  tenant_id                     = data.azurerm_client_config.current.tenant_id
+  sku_name                      = "standard"
+  rbac_authorization_enabled    = true
+  public_network_access_enabled = true
+  purge_protection_enabled      = false
+}
+
+resource "azurerm_role_assignment" "key_vault_ci" {
+  scope                            = azurerm_key_vault.this.id
+  role_definition_name             = "Key Vault Secrets User"
+  principal_id                     = var.github_actions_principal_id
+  skip_service_principal_aad_check = true
+}
+
+data "azurerm_key_vault_secret" "discord_token" {
+  name         = "discord-token"
+  key_vault_id = azurerm_key_vault.this.id
+
+  depends_on = [azurerm_role_assignment.key_vault_ci]
+}
+
 resource "azurerm_user_assigned_identity" "this" {
   name                = "id-discord-bot"
   location            = azurerm_resource_group.this.location
@@ -104,7 +129,7 @@ resource "azurerm_container_app" "this" {
 
   secret {
     name  = "discord-token"
-    value = var.discord_token
+    value = data.azurerm_key_vault_secret.discord_token.value
   }
 
   template {
