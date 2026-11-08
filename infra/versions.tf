@@ -7,6 +7,14 @@ terraform {
       version = "~> 4.0"
     }
   }
+
+  backend "azurerm" {
+    resource_group_name  = "rg-discord-bot-tfstate"
+    storage_account_name = "stdiscordbottfstate"
+    container_name       = "tfstate"
+    key                  = "discord-bot.tfstate"
+    use_azuread_auth     = true
+  }
 }
 
 provider "azurerm" {
@@ -19,5 +27,6 @@ provider "azurerm" {
     "Microsoft.ContainerRegistry",
     "Microsoft.OperationalInsights",
     "Microsoft.Storage",
+    "Microsoft.KeyVault",
   ]
 }

@@ -46,8 +46,42 @@ Terraform in `infra/` creates the resources in `eastus`. `infra/deploy.ps1` is t
 | Log Analytics workspace | Container Apps environment log destination. The bot itself does not write a log file. |
 | Container Apps environment and `ca-discord-bot` | Runs the process. One replica, because a second login would double every reply. No ingress, because nothing on the internet connects in. The bot dials out to Discord and FastF1. |
 | 0.5 vCPU and 1 GiB | The consumption plan pairs 1 GiB with 0.5 vCPU. pandas and FastF1 need that memory. |
+| Key Vault `kv-discordbotcody` | Holds the Discord token. The container reads it at deploy time. Anonymous access is off. |
+| Resource group `rg-discord-bot-tfstate` and storage account `stdiscordbottfstate` | Remote Terraform state, separate from the bot so destroying the bot does not delete state. The container is private, versioning is on, and the workflow authenticates with Azure AD instead of a storage key. |
 
-The subscription id is not in the repo. Terraform uses the Azure CLI login through `ARM_SUBSCRIPTION_ID`, which `deploy.ps1` sets.
+![Terraform](https://github.com/Codytm/discordBot/actions/workflows/terraform.yml/badge.svg)
+
+## Continuous delivery
+
+GitHub Actions plans this stack on a pull request and applies it after the pull request merges to `main`. The workflow is [.github/workflows/terraform.yml](.github/workflows/terraform.yml). Terraform is pinned to 1.16.6.
+
+GitHub signs in to Azure with OpenID Connect. The app registration is `github-discord-bot`, created by the one-time [infra/bootstrap](infra/bootstrap) stack. A pull request from a fork does not get that login. Apply runs only on a push to `main`, in a GitHub Environment named `production`.
+
+On `main`, the workflow builds the image, pushes `discordbot:<commit sha>` to the private registry, then applies Terraform with that tag. A pull request plans against the image tag that is already running, so the plan does not propose deleting the app.
+
+These GitHub Actions variables are identifiers, not the Discord token:
+
+| Variable | Source |
+| --- | --- |
+| `AZURE_CLIENT_ID` | `terraform -chdir=infra/bootstrap output -raw client_id` |
+| `AZURE_TENANT_ID` | `terraform -chdir=infra/bootstrap output -raw tenant_id` |
+| `AZURE_SUBSCRIPTION_ID` | `terraform -chdir=infra/bootstrap output -raw subscription_id` |
+| `AZURE_GITHUB_PRINCIPAL_ID` | `terraform -chdir=infra/bootstrap output -raw principal_id` |
+| `F1_RESULTS_CHANNEL` | The same channel id as in `.env` |
+
+From the repo root, with the GitHub CLI logged in:
+
+```powershell
+gh variable set AZURE_CLIENT_ID --body (terraform -chdir=infra/bootstrap output -raw client_id)
+gh variable set AZURE_TENANT_ID --body (terraform -chdir=infra/bootstrap output -raw tenant_id)
+gh variable set AZURE_SUBSCRIPTION_ID --body (terraform -chdir=infra/bootstrap output -raw subscription_id)
+gh variable set AZURE_GITHUB_PRINCIPAL_ID --body (terraform -chdir=infra/bootstrap output -raw principal_id)
+gh variable set F1_RESULTS_CHANNEL --body "<channel id from .env>"
+```
+
+The bootstrap stack is applied once from this PC, before the workflow exists. Its own state stays local. After that storage account exists, the main stack's backend is the private container, and the existing state is moved with `terraform init -migrate-state`.
+
+Turn on branch protection for `main` and require the Terraform workflow before merge. That setting lives in GitHub, not in Terraform.
 
 ## Run it locally
 
@@ -67,10 +101,10 @@ From `infra/`, with the Azure CLI logged in, Terraform, Docker, and Git installe
 .\deploy.ps1
 ```
 
-The script writes `infra/terraform.tfvars` from `.env`, applies the registry and file share, uploads `data/f1_posted.json`, builds and pushes the image, then applies the container app.
+The script writes `infra/terraform.tfvars` from `.env` and the bootstrap output, applies the registry and file share, uploads `data/f1_posted.json`, builds and pushes the image, then applies the container app. It does not write the Discord token into Terraform. A new or rotated token is stored with `az keyvault secret set` in `kv-discordbotcody`.
 
-A later code change is another `.\deploy.ps1`. That builds a new SHA tag and updates the app.
+A later code change can be another `.\deploy.ps1`, or a merge to `main`, which runs the GitHub Actions workflow.
 
 ## What is not on GitHub
 
-`.env`, `infra/terraform.tfvars`, and `infra/terraform.tfstate` hold the Discord token and the storage account key. They are gitignored. `infra/terraform.tfvars.example` shows the variable names with empty values.
+`.env` holds the Discord token for local runs. `infra/terraform.tfvars` holds the image tag, the results channel, and the GitHub principal id. `infra/bootstrap/terraform.tfstate` is the bootstrap stack's local state. All of those are gitignored. `infra/terraform.tfvars.example` shows the variable names with empty values. The live token and the main stack's state are in Azure, in Key Vault and the private state container.

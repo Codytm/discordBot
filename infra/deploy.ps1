@@ -1,7 +1,7 @@
 # Bring the bot up on Azure. This PC can be off after the script finishes.
 #
 # Order:
-#   1. Write gitignored terraform.tfvars from the repo .env. The token is not printed.
+#   1. Write gitignored terraform.tfvars. The Discord token stays in Key Vault.
 #   2. terraform apply with no image tag. Creates the resource group, private
 #      registry, file share, and Container Apps environment. The app is skipped
 #      until an image exists.
@@ -32,7 +32,7 @@ function ConvertTo-HclString([string]$Value) {
 
 $envPath = Join-Path $PSScriptRoot "..\.env"
 if (-not (Test-Path $envPath)) {
-    Write-Error ".env is missing. It must define DISCORD_TOKEN."
+    Write-Error ".env is missing."
 }
 
 $values = @{}
@@ -48,10 +48,6 @@ foreach ($line in Get-Content $envPath) {
     $values[$name.Trim()] = $value
 }
 
-$token = $values["DISCORD_TOKEN"]
-if (-not $token) {
-    Write-Error "DISCORD_TOKEN is missing from .env"
-}
 $channel = $values["F1_RESULTS_CHANNEL"]
 if (-not $channel) {
     $channel = ""
@@ -63,11 +59,16 @@ if (Test-Path $tagFile) {
     $existingTag = (Get-Content -Path $tagFile -Raw).ToString().Trim()
 }
 
-$tfvars = "discord_token      = $(ConvertTo-HclString $token)`n" +
-          "f1_results_channel = $(ConvertTo-HclString $channel)`n" +
-          "image_tag          = $(ConvertTo-HclString $existingTag)`n"
+$principal = (terraform -chdir=bootstrap output -raw principal_id).ToString().Trim()
+if (-not $principal) {
+    Write-Error "Bootstrap principal id is missing. Apply infra/bootstrap first."
+}
+
+$tfvars = "f1_results_channel          = $(ConvertTo-HclString $channel)`n" +
+          "image_tag                   = $(ConvertTo-HclString $existingTag)`n" +
+          "github_actions_principal_id = $(ConvertTo-HclString $principal)`n"
 [System.IO.File]::WriteAllText((Join-Path $PSScriptRoot "terraform.tfvars"), $tfvars)
-Write-Host "Wrote terraform.tfvars from .env"
+Write-Host "Wrote terraform.tfvars"
 
 terraform init -input=false
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -100,9 +101,9 @@ if (-not $sha) {
     Write-Error "Image publish did not record a tag."
 }
 
-$tfvars = "discord_token      = $(ConvertTo-HclString $token)`n" +
-          "f1_results_channel = $(ConvertTo-HclString $channel)`n" +
-          "image_tag          = $(ConvertTo-HclString $sha)`n"
+$tfvars = "f1_results_channel          = $(ConvertTo-HclString $channel)`n" +
+          "image_tag                   = $(ConvertTo-HclString $sha)`n" +
+          "github_actions_principal_id = $(ConvertTo-HclString $principal)`n"
 [System.IO.File]::WriteAllText((Join-Path $PSScriptRoot "terraform.tfvars"), $tfvars)
 
 terraform apply -input=false -auto-approve
