@@ -53,7 +53,8 @@ resource "azuread_application_federated_identity_credential" "pull_request" {
   description    = "Plans from pull requests in Codytm/discordBot."
   audiences      = ["api://AzureADTokenExchange"]
   issuer         = "https://token.actions.githubusercontent.com"
-  subject        = "repo:Codytm/discordBot:pull_request"
+  # This repo includes the owner and repository ids in the Actions OIDC subject.
+  subject        = "repo:Codytm@120184933/discordBot@1426336156:pull_request"
 }
 
 resource "azuread_application_federated_identity_credential" "main" {
@@ -62,7 +63,7 @@ resource "azuread_application_federated_identity_credential" "main" {
   description    = "Applies pushes to main in Codytm/discordBot."
   audiences      = ["api://AzureADTokenExchange"]
   issuer         = "https://token.actions.githubusercontent.com"
-  subject        = "repo:Codytm/discordBot:ref:refs/heads/main"
+  subject        = "repo:Codytm@120184933/discordBot@1426336156:ref:refs/heads/main"
 }
 
 resource "azurerm_role_assignment" "state_ci" {
