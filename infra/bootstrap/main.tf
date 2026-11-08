@@ -60,10 +60,10 @@ resource "azuread_application_federated_identity_credential" "pull_request" {
 resource "azuread_application_federated_identity_credential" "main" {
   application_id = azuread_application.github.id
   display_name   = "github-main"
-  description    = "Applies pushes to main in Codytm/discordBot."
+  description    = "Applies pushes to main. The production environment sets this subject."
   audiences      = ["api://AzureADTokenExchange"]
   issuer         = "https://token.actions.githubusercontent.com"
-  subject        = "repo:Codytm@120184933/discordBot@1426336156:ref:refs/heads/main"
+  subject        = "repo:Codytm@120184933/discordBot@1426336156:environment:production"
 }
 
 resource "azurerm_role_assignment" "state_ci" {
