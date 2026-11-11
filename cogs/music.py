@@ -91,9 +91,9 @@ class Music(commands.Cog):
             if voice.channel != channel:
                 await voice.move_to(channel)
             return voice
-        except Exception as exc:
-            log.exception("Could not join voice")
-            await ctx.send(f"I couldn't join that voice channel: {exc}")
+        except discord.ClientException as exc:
+            log.warning("Could not join voice: %s", exc)
+            await ctx.send("I couldn't join that voice channel. Check Connect and Speak, and that ffmpeg is installed.")
             return None
 
     async def _advance(self, guild_id: int):

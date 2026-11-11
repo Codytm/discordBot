@@ -2,9 +2,9 @@
 # runtime by Container Apps, never baked into a layer.
 FROM python:3.12-slim
 
-# ffmpeg turns a YouTube audio stream into PCM. libopus0 encodes that PCM for Discord.
+# ffmpeg turns a YouTube audio stream into PCM for Discord voice.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg libopus0 \
+    && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

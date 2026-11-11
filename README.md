@@ -40,7 +40,7 @@ The command prefix is `!`.
 - FastF1's Ergast client for standings and race results
 - python-dotenv for local configuration
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) and ffmpeg for YouTube audio in a voice channel
-- PyNaCl and davey, installed with `discord.py[voice]`, for Discord voice encryption
+- PyNaCl for Discord voice encryption
 
 The bot needs the message content intent and the server members intent. YouTube playback depends on yt-dlp and can break when YouTube changes its player. Age-restricted and live videos are not played. Local runs need ffmpeg on `PATH`. The container image installs it.
 
