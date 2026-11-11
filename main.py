@@ -1,4 +1,6 @@
+import logging
 import os
+import sys
 
 import discord
 from discord.ext import commands
@@ -31,24 +33,15 @@ def main():
     if not token:
         raise SystemExit("DISCORD_TOKEN is missing. Add it to the .env file.")
 
-    # File logging is off. discord.log was wiped on every start, and the
-    # container does not keep that file. Uncaught tracebacks still go to stderr.
-    # handler = logging.FileHandler(filename="discord.log", encoding="utf-8", mode="w")
-    # console = logging.StreamHandler()
-    # console.setLevel(logging.INFO)
-    # logging.getLogger("discord").setLevel(logging.DEBUG)
-    # logging.getLogger("discord").addHandler(handler)
-    # bot_log = logging.getLogger("bot")
-    # bot_log.setLevel(logging.INFO)
-    # bot_log.addHandler(handler)
-    # bot_log.addHandler(console)
+    # Logs go to stderr so Container Apps keeps them. No log file.
+    logging.basicConfig(level=logging.INFO, stream=sys.stderr)
 
     intents = discord.Intents.default()
     intents.message_content = True
     intents.members = True
 
     bot = Bot(command_prefix="!", intents=intents)
-    bot.run(token, log_handler=None)
+    bot.run(token)
 
 
 if __name__ == "__main__":

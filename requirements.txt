@@ -1,6 +1,5 @@
-discord.py>=2.4
+discord.py[voice]>=2.7
 python-dotenv
 pandas
 fastf1
-PyNaCl
 yt-dlp
