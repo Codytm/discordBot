@@ -9,10 +9,15 @@ import yt_dlp
 
 log = logging.getLogger("bot.music")
 
-# The default web client is what Azure's address gets challenged on.
-# These clients are tried, in order, after that challenge.
-YOUTUBE_CLIENTS = ("tv", "web_safari", "android_vr", "mweb")
-FFMPEG_BEFORE = "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -protocol_whitelist file,http,https,tcp,tls,crypto"
+YTDL_OPTIONS = {
+    "format": "bestaudio/best",
+    "noplaylist": True,
+    "quiet": True,
+    "no_warnings": True,
+    "default_search": "ytsearch1",
+    "source_address": "0.0.0.0",
+}
+FFMPEG_BEFORE = "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
 FFMPEG_OPTIONS = "-vn"
 
 
@@ -20,7 +25,6 @@ FFMPEG_OPTIONS = "-vn"
 class Track:
     title: str
     page: str
-    player_client: str | None = None
 
 
 @dataclass
@@ -31,35 +35,12 @@ class GuildMusic:
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
-def _options(player_client: str | None) -> dict:
-    options = {
-        "format": "bestaudio/best",
-        "noplaylist": True,
-        "quiet": True,
-        "no_warnings": True,
-        "default_search": "ytsearch1",
-        "source_address": "0.0.0.0",
-    }
-    if player_client is not None:
-        options["extractor_args"] = {"youtube": {"player_client": [player_client]}}
-    return options
-
-
-def _retryable(exc: Exception) -> bool:
-    message = str(exc).lower()
-    return any(
-        phrase in message
-        for phrase in (
-            "not a bot",
-            "requested format is not available",
-            "no video formats",
-            "only images are available",
-            "sign in to confirm your age",
-        )
-    )
-
-
-def _video(info: dict) -> dict:
+def resolve_track(query: str) -> Track:
+    """Look up one video. Raises ValueError for live streams and missing results."""
+    with yt_dlp.YoutubeDL(YTDL_OPTIONS) as downloader:
+        info = downloader.extract_info(query, download=False)
+    if info is None:
+        raise ValueError("No video found.")
     if "entries" in info:
         entries = [entry for entry in info["entries"] if entry]
         if not entries:
@@ -67,62 +48,20 @@ def _video(info: dict) -> dict:
         info = entries[0]
     if info.get("is_live"):
         raise ValueError("Live videos are not supported.")
-    return info
+    page = info.get("webpage_url") or query
+    title = info.get("title") or query
+    if not info.get("url"):
+        raise ValueError("No audio stream.")
+    return Track(title=title, page=page)
 
 
-def _extract(query: str, player_client: str | None) -> dict:
-    with yt_dlp.YoutubeDL(_options(player_client)) as downloader:
-        info = downloader.extract_info(query, download=False)
-    if info is None:
-        raise ValueError("No video found.")
-    return _video(info)
-
-
-def resolve_track(query: str) -> Track:
-    """Look up one video. Raises ValueError for live streams and missing results."""
-    last_error: Exception | None = None
-    for client in (None, *YOUTUBE_CLIENTS):
-        try:
-            info = _extract(query, client)
-        except ValueError:
-            raise
-        except Exception as exc:
-            last_error = exc
-            if _retryable(exc):
-                log.warning("YouTube client %s could not resolve the track", client or "default")
-                continue
-            raise
-        if not info.get("url"):
-            last_error = ValueError("No audio stream.")
-            continue
-        return Track(
-            title=info.get("title") or query,
-            page=info.get("webpage_url") or query,
-            player_client=client,
-        )
-    raise last_error or ValueError("No video found.")
-
-
-def stream_url(page: str, player_client: str | None) -> str:
+def stream_url(page: str) -> str:
     """Resolve a fresh audio URL. YouTube links expire, so this runs at play time."""
-    clients = [player_client]
-    clients.extend(client for client in (None, *YOUTUBE_CLIENTS) if client != player_client)
-    last_error: Exception | None = None
-    for client in clients:
-        try:
-            info = _extract(page, client)
-        except ValueError:
-            raise
-        except Exception as exc:
-            last_error = exc
-            if _retryable(exc):
-                log.warning("YouTube client %s could not refresh the stream", client or "default")
-                continue
-            raise
-        if info.get("url"):
-            return info["url"]
-        last_error = ValueError("No audio stream.")
-    raise last_error or ValueError("No audio stream.")
+    with yt_dlp.YoutubeDL(YTDL_OPTIONS) as downloader:
+        info = downloader.extract_info(page, download=False)
+    if info is None or not info.get("url"):
+        raise ValueError("No audio stream.")
+    return info["url"]
 
 
 class Music(commands.Cog):
@@ -175,7 +114,7 @@ class Music(commands.Cog):
             state.current = track
             state.starting = True
         try:
-            url = await asyncio.to_thread(stream_url, track.page, track.player_client)
+            url = await asyncio.to_thread(stream_url, track.page)
             source = discord.FFmpegPCMAudio(url, before_options=FFMPEG_BEFORE, options=FFMPEG_OPTIONS)
 
             def after(error: BaseException | None):
@@ -214,12 +153,9 @@ class Music(commands.Cog):
         try:
             async with ctx.typing():
                 track = await asyncio.to_thread(resolve_track, query)
-        except Exception as exc:
+        except Exception:
             log.exception("Could not resolve %s", query)
-            if "not a bot" in str(exc).lower():
-                await ctx.send("YouTube blocked that lookup from the server. Try another link in a minute.")
-            else:
-                await ctx.send("Couldn't find audio for that. Age-restricted and live videos are not supported.")
+            await ctx.send("Couldn't find audio for that. Age-restricted and live videos are not supported.")
             return
 
         state = self._state(ctx.guild.id)
