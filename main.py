@@ -10,6 +10,7 @@ EXTENSIONS = (
     "cogs.general",
     "cogs.f1",
     "cogs.link_fix",
+    "cogs.music",
 )
 
 
