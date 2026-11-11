@@ -12,8 +12,6 @@ The command prefix is `!`.
 
 `cogs/link_fix.py` finds `x.com` and `twitter.com` status links and reposts them through FxEmbed (`fixupx.com` / `fxtwitter.com`). Discord's own X embeds drop images and video. The repost uses a webhook named `EmbedFix` so the message still shows the original author, then the original message is removed. Links inside code spans or spoilers are left alone. The bot needs Manage Webhooks in that channel.
 
-`cogs/music.py` joins a voice channel and plays one YouTube track at a time. A search or a link is resolved with yt-dlp, and ffmpeg streams the audio. The queue lives in memory, so a restart clears it. The bot's role needs Connect and Speak.
-
 ## Commands
 
 | Command | What it does |
@@ -25,12 +23,6 @@ The command prefix is `!`.
 | `!standings` | Driver championship. `!standings constructors` is the team championship. |
 | `!results` | Last race classification. `!results 5` is a round number. |
 | `!resultschannel` | Posts future results in this channel. Requires Manage Server. Ignored when `F1_RESULTS_CHANNEL` is set. |
-| `!join` | Joins the voice channel you are in. |
-| `!play` | Queues a YouTube link or search and starts playback when nothing else is playing. |
-| `!skip` | Skips the current track. |
-| `!stop` | Stops playback and clears the queue. |
-| `!queue` | Shows the current track and the queue. |
-| `!leave` | Clears the queue and leaves the voice channel. |
 
 ## What it is built with
 
@@ -39,10 +31,8 @@ The command prefix is `!`.
 - [FastF1](https://docs.fastf1.dev/) and pandas for the schedule and session times
 - FastF1's Ergast client for standings and race results
 - python-dotenv for local configuration
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) and ffmpeg for YouTube audio in a voice channel
-- PyNaCl for Discord voice encryption
 
-The bot needs the message content intent and the server members intent. YouTube playback depends on yt-dlp and can break when YouTube changes its player. Age-restricted and live videos are not played. Local runs need ffmpeg on `PATH`. The container image installs it.
+The bot needs the message content intent and the server members intent.
 
 ## How it runs on Azure
 
